@@ -1,0 +1,76 @@
+# RubyFuza Sample Application Pipeline
+variables:
+  registryName : <<your registry nme>>
+  subscriptionName: <<your subscription name>>
+  registryLocation: South Africa North
+  registrySku: Basic
+  
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+  - job: Build
+    displayName: 'Builds and Tests'
+    steps:
+    - script: docker build -f $(Build.SourcesDirectory)/src/Application/Dockerfile --target build -t rubytaskstest:$(build.buildid) $(Build.SourcesDirectory)/src/Application 
+      displayName: 'Create partial docker image'
+
+    - script: |
+        docker create -ti --name testcontainer rubytaskstest:$(build.buildid) 
+        docker cp testcontainer:/app/coverage/ $(Build.ArtifactStagingDirectory)
+        docker cp testcontainer:/app/tmp/TEST-rspec.xml $(Build.ArtifactStagingDirectory) 
+        docker rm -fv testcontainer
+        ls $(Build.ArtifactStagingDirectory)
+      displayName: 'Copy Test results'
+
+    - task: PublishTestResults@2
+      displayName: 'Publish test results'
+      inputs:
+        searchFolder: '$(Build.ArtifactStagingDirectory)'
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage results'
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: '$(Build.ArtifactStagingDirectory)/coverage/coverage.xml'
+  
+  - job: Push
+    displayName: 'Push container'    
+    dependsOn: Build
+    steps:
+    - task: AzureResourceGroupDeployment@2
+      displayName: 'Ensure Azure Container Registry'
+      inputs:
+        azureSubscription: '$(subscriptionName)'
+        resourceGroupName: rubyfuza
+        location: 'South Africa North'
+        csmFile: '$(System.DefaultWorkingDirectory)/**/container_registry.json'
+        overrideParameters: '-registryName "$(registryName)" -registryLocation "$(registryLocation)" -registrySku "$(registrySku)"'
+        
+    - task: Docker@1
+      displayName: 'Build the docker image'
+      inputs:
+        azureSubscriptionEndpoint: '$(subscriptionName)'
+        azureContainerRegistry: '$(registryName).azurecr.io'
+        imageName: 'rubytasks:$(Build.BuildId)'
+        dockerFile: $(Build.SourcesDirectory)/src/Application/Dockerfile
+
+    - task: Docker@1
+      displayName: 'Push an image'
+      inputs:
+        azureSubscriptionEndpoint: '$(subscriptionName)'
+        azureContainerRegistry: '$(registryName).azurecr.io'
+        imageName: 'rubytasks:$(Build.BuildId)'
+        command: 'Push an image'
+
+  - job: Publish
+    displayName: 'Publish Templates'
+    dependsOn: Push
+    steps:
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Templates'
+      inputs:
+        PathtoPublish: '$(Build.SourcesDirectory)/src/Templates'
+        ArtifactName: 'templates'
+

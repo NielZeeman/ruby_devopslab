@@ -1,0 +1,3 @@
+--require spec_helper
+--format RspecJunitFormatter
+--out tmp/TEST-rspec.xml
