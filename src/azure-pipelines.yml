@@ -2,6 +2,7 @@
 variables:
   registryName : <<your registry nme>>
   subscriptionName: <<your subscription name>>
+  resourceGroupName : <<your resource group>>
   registryLocation: South Africa North
   registrySku: Basic
   
@@ -43,8 +44,8 @@ jobs:
       displayName: 'Ensure Azure Container Registry'
       inputs:
         azureSubscription: '$(subscriptionName)'
-        resourceGroupName: rubyfuza
-        location: 'South Africa North'
+        resourceGroupName: '$(resourceGroupName)'
+        location: '$(registryLocation)'
         csmFile: '$(System.DefaultWorkingDirectory)/**/container_registry.json'
         overrideParameters: '-registryName "$(registryName)" -registryLocation "$(registryLocation)" -registrySku "$(registrySku)"'
         
